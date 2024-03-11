@@ -1,0 +1,41 @@
+image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/rust:1-slim
+
+stages:
+  - build
+  - test
+
+variables:
+  # This will instruct Docker not to start over TLS.
+  DOCKER_TLS_CERTDIR: ""
+
+build:
+  stage: build
+  script:
+    - cargo build --release
+  artifacts:
+    paths:
+      - target/release/lcc-web-api
+      - target/release/leaked-passwords-filter-tool
+    expire_in: 1 week
+    when: always
+  needs: []
+
+lint:
+  stage: test
+  script:
+    - rustup component add clippy
+    - cargo clippy -- -Dwarnings
+    - rustup component add rustfmt
+    - cargo fmt --all -- --check
+  needs: []
+
+filter-test:
+  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/debian:stable
+  stage: test
+  script:
+    - echo -n "test" | sha1sum > hashes
+    - echo -n "test2" | sha1sum >> hashes
+    - echo -n "test3" | sha1sum >> hashes
+    - target/release/leaked-passwords-filter-tool ./hashes ./filter.bincode -b
+  needs:
+    - build
