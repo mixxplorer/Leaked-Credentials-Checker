@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use axum::{routing::post, Router};
 use clap::Parser;
 
@@ -14,7 +14,10 @@ struct AppState {
 
 impl AppState {
     fn new(filter_file_path: &String) -> Result<AppState> {
-        let hash_filter = Arc::new(lcc_lib::password_filter::load_filter(filter_file_path).unwrap());
+        let hash_filter = Arc::new(
+            lcc_lib::password_filter::load_filter(filter_file_path)
+                .context("Loading filter unsuccessful? Does the filter exist and matches the filter version to the binary version?")?,
+        );
         Ok(AppState { hash_filter })
     }
 }
@@ -27,7 +30,7 @@ impl AppState {
     long_about = "Exposes a web API, which can be used to check for leaked credentials (passwords)"
 )]
 pub struct CliArguments {
-    #[clap(long, short, default_value = "127.0.0.1:3000", help = "Bind address with port, e.g. 127.0.0.1:3000")]
+    #[clap(long, short, default_value = "[::1]:3000", help = "Bind address with port, e.g. [::1]:3000")]
     bind_addr: String,
 
     #[clap(long, short, default_value = lcc_lib::constants::DEFAULT_FILTER_FILE, help = "Path to read and write the filter to. If re-building filter is requested, this file gets overwritten.")]
