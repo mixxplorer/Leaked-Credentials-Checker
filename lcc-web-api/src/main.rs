@@ -33,7 +33,7 @@ pub struct CliArguments {
     #[clap(long, short, default_value = "[::1]:3000", help = "Bind address with port, e.g. [::1]:3000")]
     bind_addr: String,
 
-    #[clap(long, short, default_value = lcc_lib::constants::DEFAULT_FILTER_FILE, help = "Path to read and write the filter to. If re-building filter is requested, this file gets overwritten.")]
+    #[clap(long, short, default_value = lcc_lib::constants::DEFAULT_FILTER_FILE, help = "Path to read filter from.")]
     filter_file: String,
 
     #[clap(flatten)]
@@ -47,8 +47,7 @@ async fn main() -> Result<()> {
     simple_logger::SimpleLogger::new()
         .with_level(args.log_level.log_level().unwrap().to_level_filter())
         .with_utc_timestamps()
-        .init()
-        .unwrap();
+        .init()?;
 
     log::info!("Constructing app state...");
     let state = AppState::new(&args.filter_file)?;

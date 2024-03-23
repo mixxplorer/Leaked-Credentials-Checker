@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use itertools::Itertools;
 use xorf::Filter;
 
@@ -44,7 +44,8 @@ impl PasswordHashFileIterator {
 
         let filtered = lines
             .map_while(Result::ok)
-            .map(|line: String| hash_string_to_filter_item(&line).unwrap())
+            .map(|line: String| hash_string_to_filter_item(&line))
+            .map_while(Result::ok)
             .dedup()
             .skip(skip_lines);
         Ok(PasswordHashFileIterator {
@@ -98,7 +99,9 @@ impl PasswordFilter {
 }
 
 pub fn construct_filter(password_hash_file: &PasswordHashFile) -> Result<PasswordFilter> {
-    let filter = BinaryFilterType::try_from_iterator(password_hash_file.iter()?).unwrap();
+    let filter = BinaryFilterType::try_from_iterator(password_hash_file.iter()?)
+        .map_err(|op| anyhow::anyhow!(op.to_string()))
+        .context("Constructing xor filter failed!")?;
     Ok(PasswordFilter {
         filter,
         licenses: vec![
@@ -121,7 +124,7 @@ pub fn construct_filter(password_hash_file: &PasswordHashFile) -> Result<Passwor
 }
 
 pub fn save_filter(filter: &PasswordFilter, filter_file: String) -> Result<()> {
-    let mut filter_file_fp = std::io::BufWriter::new(std::fs::File::create(filter_file).unwrap());
+    let mut filter_file_fp = std::io::BufWriter::new(std::fs::File::create(filter_file)?);
     bincode::encode_into_std_write(filter, &mut filter_file_fp, bincode::config::standard())?;
     Ok(())
 }
