@@ -4,6 +4,15 @@ use xorf::Filter;
 
 use crate::{constants::BinaryFilterType, util};
 
+fn map_password_hash_lines(lines: std::io::Lines<std::io::BufReader<std::fs::File>>) -> impl Iterator<Item = u64> {
+    lines
+        .map_while(Result::ok)
+        .map(|line: String| hash_string_to_filter_items(&line))
+        .map_while(Result::ok)
+        .flatten()
+        .dedup()
+}
+
 pub struct PasswordHashFile {
     pub file_name: String,
     pub length: usize,
@@ -12,8 +21,8 @@ pub struct PasswordHashFile {
 impl PasswordHashFile {
     pub fn from_file_name(file_name: String) -> Result<Self> {
         let file = std::io::BufReader::with_capacity(1024 * 1024 * 64, std::fs::File::open(&file_name)?);
-        let lines = std::io::BufRead::lines(file).map_while(Result::ok).dedup();
-        let length = lines.count();
+        let lines = std::io::BufRead::lines(file);
+        let length = map_password_hash_lines(lines).count();
 
         Ok(Self { file_name, length })
     }
@@ -30,11 +39,11 @@ pub struct PasswordHashFileIterator {
     lines_consumed: usize,
 }
 
-pub fn hash_string_to_filter_item(input: &String) -> Result<u64> {
+pub fn hash_string_to_filter_items(input: &String) -> Result<Vec<u64>> {
     if input.len() < 16 {
         bail!("Given hash string '{}' too short (< 16 chars)", input)
     }
-    Ok(u64::from_str_radix(&input[0..16], 16)?)
+    Ok(vec![u64::from_str_radix(&input[0..16], 16)?])
 }
 
 impl PasswordHashFileIterator {
@@ -42,12 +51,7 @@ impl PasswordHashFileIterator {
         let reader = std::io::BufReader::new(std::fs::File::open(&file_name)?);
         let lines = std::io::BufRead::lines(reader);
 
-        let filtered = lines
-            .map_while(Result::ok)
-            .map(|line: String| hash_string_to_filter_item(&line))
-            .map_while(Result::ok)
-            .dedup()
-            .skip(skip_lines);
+        let filtered = map_password_hash_lines(lines).skip(skip_lines);
         Ok(PasswordHashFileIterator {
             file_name,
             iterator: Box::new(filtered),
