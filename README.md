@@ -33,7 +33,7 @@ This will create the file `pwnedpasswords.txt`.
 
 `target/release/leaked-passwords-filter-tool pwnedpasswords.txt filter.bincode -b`
 
-For generating the filter file for the full pwnedpasswords set, you need about 35 GB of RAM.
+For generating the filter file for the full pwnedpasswords set, you need about 35 GB of memory. You can make use of swap pretty efficiently.
 
 ### Run web API
 
