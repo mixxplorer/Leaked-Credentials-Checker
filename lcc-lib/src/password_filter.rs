@@ -8,7 +8,7 @@ fn map_password_hash_lines(lines: std::io::Lines<std::io::BufReader<std::fs::Fil
     lines
         .map_while(Result::ok)
         .map(|line: String| hash_string_to_filter_items(&line))
-        .map_while(Result::ok)
+        .filter_map(Result::ok)
         .flatten()
         .dedup()
 }
