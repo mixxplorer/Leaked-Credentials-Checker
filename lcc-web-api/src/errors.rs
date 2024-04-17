@@ -10,7 +10,7 @@ pub struct WebAppError {
 
 #[derive(serde::Serialize, schemars::JsonSchema)]
 struct WebAppPublicError {
-    /// Error ID. Can be used by server admin to lookup exact error / backtrace
+    /// Error ID: Can be used by server admin to lookup exact error / backtrace
     id: String,
 
     /// Message shown to API user
@@ -69,6 +69,26 @@ impl axum::response::IntoResponse for WebAppError {
     }
 }
 
+macro_rules! web_app_error_response {
+    ($ctx:tt, $desc:tt, $message:tt) => {
+        aide::openapi::Response {
+            description: $desc.to_string(),
+            content: indexmap::indexmap! {
+                "application/json".to_owned() => aide::openapi::MediaType {
+                    schema: Some(aide::openapi::SchemaObject {
+                        json_schema: $ctx.schema.subschema_for::<WebAppPublicError>(),
+                        example: None,
+                        external_docs: None,
+                    }),
+                    example: Some(serde_json::json!(WebAppPublicError{ id: lcc_lib::util::get_error_id(), message: Some($message.to_string()) })),
+                    ..Default::default()
+                }
+            },
+            ..Default::default()
+        }
+    };
+}
+
 impl aide::OperationOutput for WebAppError {
     type Inner = String;
 
@@ -76,45 +96,23 @@ impl aide::OperationOutput for WebAppError {
         ctx: &mut aide::gen::GenContext,
         _operation: &mut aide::openapi::Operation,
     ) -> std::vec::Vec<(std::option::Option<u16>, aide::openapi::Response)> {
-        let web_app_error_internal_response = aide::openapi::Response {
-            description: "Internal Server Error".to_owned(),
-            headers: indexmap::indexmap! {},
-            content: indexmap::indexmap! {
-                "application/json".to_owned() => aide::openapi::MediaType {
-                    schema: Some(aide::openapi::SchemaObject {
-                        json_schema: ctx.schema.subschema_for::<WebAppPublicError>(),
-                        example: None,
-                        external_docs: None,
-                    }),
-                    example: Some(serde_json::json!(WebAppPublicError{ id: lcc_lib::util::get_error_id(), message: Some("Example error message. Contact server admin to get more information.".to_owned()) })),
-                    ..Default::default()
-                }
-            },
-            links: indexmap::indexmap! {},
-            extensions: indexmap::indexmap! {},
-        };
-
-        let web_app_error_bad_request_response = aide::openapi::Response {
-            description: "Bad Request".to_owned(),
-            headers: indexmap::indexmap! {},
-            content: indexmap::indexmap! {
-                "application/json".to_owned() => aide::openapi::MediaType {
-                    schema: Some(aide::openapi::SchemaObject {
-                        json_schema: ctx.schema.subschema_for::<WebAppPublicError>(),
-                        example: None,
-                        external_docs: None,
-                    }),
-                    example: Some(serde_json::json!(WebAppPublicError{ id: lcc_lib::util::get_error_id(), message: Some("Example error message about which validation failed. Contact server admin to get more information.".to_owned()) })),
-                    ..Default::default()
-                }
-            },
-            links: indexmap::indexmap! {},
-            extensions: indexmap::indexmap! {},
-        };
-
         vec![
-            (Some(StatusCode::INTERNAL_SERVER_ERROR.into()), web_app_error_internal_response),
-            (Some(StatusCode::BAD_REQUEST.into()), web_app_error_bad_request_response),
+            (
+                Some(StatusCode::INTERNAL_SERVER_ERROR.into()),
+                web_app_error_response!(
+                    ctx,
+                    "Internal Server Error",
+                    "Example error message. Contact server admin to get more information."
+                ),
+            ),
+            (
+                Some(StatusCode::BAD_REQUEST.into()),
+                web_app_error_response!(
+                    ctx,
+                    "Bad Request",
+                    "Example error message about which validation failed. Contact server admin to get more information."
+                ),
+            ),
         ]
     }
 }
