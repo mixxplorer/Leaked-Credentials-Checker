@@ -1,7 +1,14 @@
 use std::sync::Arc;
 
+use aide::{
+    axum::{
+        routing::{get, post_with},
+        ApiRouter, IntoApiResponse,
+    },
+    openapi::{Info, OpenApi},
+    redoc::Redoc,
+};
 use anyhow::{Context, Result};
-use axum::{routing::post, Router};
 use clap::Parser;
 
 mod errors;
@@ -40,6 +47,10 @@ pub struct CliArguments {
     log_level: clap_verbosity_flag::Verbosity<clap_verbosity_flag::InfoLevel>,
 }
 
+async fn serve_api(axum::Extension(api): axum::Extension<OpenApi>) -> impl IntoApiResponse {
+    axum::Json(api)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = CliArguments::parse();
@@ -53,10 +64,40 @@ async fn main() -> Result<()> {
     let state = AppState::new(&args.filter_file)?;
     log::info!("Done constructing app state!");
 
-    // build our application with a single route
-    let app = Router::new().route("/v1/hashes/check", post(handlers::check_hash)).with_state(state);
+    // create metadata for API docs
+    let mut api = OpenApi {
+        info: Info {
+            title: "Leaked Credentials Checker API".to_string(),
+            description: Some("Check password hashes for their occurrence in known leaks.".to_string()),
+            contact: Some(aide::openapi::Contact {
+                name: Some("Leonard Marschke".to_string()),
+                url: Some("https://rechenknecht.net/mixxplorer/lcc/lcc".to_string()),
+                email: Some("leo@mixxplorer.de".to_string()),
+                extensions: indexmap::IndexMap::new(),
+            }),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            ..Info::default()
+        },
+        ..OpenApi::default()
+    };
 
-    // run our app with hyper...
+    // build our application utilizing the ApiRouter from aide, allowing to automatically add doc
+    let app = ApiRouter::new()
+        // Add routes of official API
+        .api_route("/v1/hashes/check", post_with(handlers::check_hash, handlers::check_hash_desc))
+        // Add non-documented routes (e.g. displaying the docs)
+        .route("/docs/api.json", get(serve_api))
+        .route("/docs", Redoc::new("/docs/api.json").with_title("LCC API").axum_route())
+        .route("/", get(|| async { axum::response::Redirect::to("/docs") }))
+        // Add global API state
+        .with_state(state)
+        // Finish building the API
+        .finish_api(&mut api)
+        // Add aide (open API) extension layer
+        .layer(axum::Extension(api))
+        .into_make_service();
+
+    // run our app
     let listener = tokio::net::TcpListener::bind(args.bind_addr).await?;
     axum::serve(listener, app).await?;
     Ok(())

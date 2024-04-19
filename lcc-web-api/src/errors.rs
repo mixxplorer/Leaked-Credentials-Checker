@@ -8,6 +8,15 @@ pub struct WebAppError {
     status_code: StatusCode,
 }
 
+#[derive(serde::Serialize, schemars::JsonSchema)]
+struct WebAppPublicError {
+    /// Error ID: Can be used by server admin to lookup exact error / backtrace
+    id: String,
+
+    /// Message shown to API user
+    message: Option<String>,
+}
+
 impl WebAppError {
     pub fn new(status_code: StatusCode) -> Self {
         Self {
@@ -19,16 +28,19 @@ impl WebAppError {
         }
     }
 
+    /// Sets a message, which is shown to the API user
     pub fn public_message(mut self, public_message: &str) -> Self {
         self.public_message = Some(public_message.to_string());
         self
     }
 
+    /// Sets a message, which is only logged on server-side
     pub fn private_message(mut self, private_message: &str) -> Self {
         self.private_message = Some(private_message.to_string());
         self
     }
 
+    /// Sets the causing error.
     pub fn error(mut self, error: anyhow::Error) -> Self {
         self.error = Some(error);
         self
@@ -48,12 +60,60 @@ impl axum::response::IntoResponse for WebAppError {
         );
         (
             self.status_code,
-            axum::Json(serde_json::json!({
-                "message": self.public_message,
-                "id": self.id,
-            })),
+            axum::Json(WebAppPublicError {
+                id: self.id,
+                message: self.public_message,
+            }),
         )
             .into_response()
+    }
+}
+
+macro_rules! web_app_error_response {
+    ($ctx:tt, $desc:tt, $message:tt) => {
+        aide::openapi::Response {
+            description: $desc.to_string(),
+            content: indexmap::indexmap! {
+                "application/json".to_owned() => aide::openapi::MediaType {
+                    schema: Some(aide::openapi::SchemaObject {
+                        json_schema: $ctx.schema.subschema_for::<WebAppPublicError>(),
+                        example: None,
+                        external_docs: None,
+                    }),
+                    example: Some(serde_json::json!(WebAppPublicError{ id: lcc_lib::util::get_error_id(), message: Some($message.to_string()) })),
+                    ..Default::default()
+                }
+            },
+            ..Default::default()
+        }
+    };
+}
+
+impl aide::OperationOutput for WebAppError {
+    type Inner = String;
+
+    fn inferred_responses(
+        ctx: &mut aide::gen::GenContext,
+        _operation: &mut aide::openapi::Operation,
+    ) -> std::vec::Vec<(std::option::Option<u16>, aide::openapi::Response)> {
+        vec![
+            (
+                Some(StatusCode::INTERNAL_SERVER_ERROR.into()),
+                web_app_error_response!(
+                    ctx,
+                    "Internal Server Error",
+                    "Example error message. Contact server admin to get more information."
+                ),
+            ),
+            (
+                Some(StatusCode::BAD_REQUEST.into()),
+                web_app_error_response!(
+                    ctx,
+                    "Bad Request",
+                    "Example error message about which validation failed. Contact server admin to get more information."
+                ),
+            ),
+        ]
     }
 }
 
