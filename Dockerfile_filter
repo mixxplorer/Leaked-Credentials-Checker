@@ -1,0 +1,9 @@
+FROM debian:stable
+
+COPY target/release/filter.bincode /data/filter.bincode
+
+COPY ./target/release/leaked-passwords-filter-tool /usr/local/bin/
+COPY ./target/release/lcc-web-api /usr/local/bin/
+
+ENTRYPOINT ["/usr/local/bin/lcc-web-api", "--filter-file", "/data/filter.bincode"]
+CMD ["--bind-addr", "0.0.0.0:3000"]

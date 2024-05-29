@@ -2,9 +2,38 @@
 
 A local-only software to check for leaked credentials. Currently only supports checking a password hash against a thin REST API.
 
+Intended to be used with plugins like [LCC Keycloak](https://rechenknecht.net/mixxplorer/lcc/lcc-keycloak).
+
 ## Architecture
 
 This software needs all password hashes downloaded as a file with one hash a line. Then, it can generate a xor filter, which is being used by the web API to check whether a particular hash is included in the leaked hash file provided. This check is done in a few microseconds.
+
+## Usage
+
+You can use a prepared filter from us or build the software yourself. For building, please see below.
+
+We provide a [Docker image](./Dockerfile_filter), which contains the Have I been pwned filter as well as the web API binaries. It might incorporate more sources in future when they become available. You can run it like
+
+```bash
+docker run -it --rm -p 127.0.0.1:3000:3000 --name lcc-api dr.rechenknecht.net/mixxplorer/lcc/lcc:api-latest-all
+```
+
+We also provide a much smaller image just containing the binaries:
+
+```bash
+docker run -it --rm -p 127.0.0.1:3000:3000 --name lcc-api dr.rechenknecht.net/mixxplorer/lcc/lcc:bin-latest
+```
+
+You can make use of the following tags per image:
+
+* `api-v1-all` containing the latest API with support to the `v1` REST API.
+* `api-latest-all` containing the latest API.
+* `bin-v1` containing the binaries providing support to the `v1` REST API.
+* `bin-latest` containing the latest binaries.
+
+We re-build all images every week with the latest hashes. Therefore, please make sure to restart your API instance accordingly.
+
+For a full list of available images, please see the [Container Registry](https://rechenknecht.net/mixxplorer/lcc/lcc/container_registry).
 
 ## Building
 

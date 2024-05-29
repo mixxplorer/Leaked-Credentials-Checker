@@ -1,12 +1,10 @@
-image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/rust:1-slim
+image: dr.rechenknecht.net/bauhelfer/container/main/rust:latest
 
 stages:
   - build
   - test
-
-variables:
-  # This will instruct Docker not to start over TLS.
-  DOCKER_TLS_CERTDIR: ""
+  - filter
+  - pack
 
 build:
   stage: build
@@ -29,7 +27,7 @@ lint:
     - cargo fmt --all -- --check
   needs: []
 
-filter-test:
+test:small-filter:
   image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/debian:stable
   stage: test
   script:
@@ -39,3 +37,74 @@ filter-test:
     - target/release/leaked-passwords-filter-tool ./hashes ./filter.bincode -b
   needs:
     - build
+
+docker:bin:
+  stage: pack
+  image:
+    name: gcr.io/kaniko-project/executor:v1.15.0-debug
+    entrypoint: [""]
+  variables:
+    IMAGE_TAG_ENV: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG:bin-b$CI_PIPELINE_IID
+    IMAGE_TAG_V1: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG:bin-v1
+    IMAGE_TAG_GENERAL: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG:bin-latest
+  needs:
+    - job: build
+      artifacts: true
+  script:
+    - /kaniko/executor
+      -v warn
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/Dockerfile_bin"
+      --destination "${IMAGE_TAG_ENV}"
+      --destination "${IMAGE_TAG_V1}"
+      --destination "${IMAGE_TAG_GENERAL}"
+    - echo "Pushed to ${IMAGE_TAG_ENV}"
+    - echo "Pushed to ${IMAGE_TAG_V1}"
+    - echo "Pushed to ${IMAGE_TAG_GENERAL}"
+
+filter:hibp:
+  stage: filter
+  image: mcr.microsoft.com/dotnet/sdk
+  needs:
+    - job: build
+      artifacts: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - export PATH="$PATH:/root/.dotnet/tools"
+    - dotnet tool install --global haveibeenpwned-downloader
+    - haveibeenpwned-downloader -p 128 pwnedpasswords
+    - ./target/release/leaked-passwords-filter-tool pwnedpasswords.txt target/release/filter.bincode -b
+  artifacts:
+    paths:
+      - target/release/filter.bincode
+    expire_in: 1 week
+    when: always
+
+docker:api-all:
+  stage: pack
+  image:
+    name: gcr.io/kaniko-project/executor:v1.15.0-debug
+    entrypoint: [""]
+  variables:
+    IMAGE_TAG_ENV: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG:api-b${CI_PIPELINE_IID}-all
+    IMAGE_TAG_V1: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG:api-v1-all
+    IMAGE_TAG_GENERAL: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG:api-latest-all
+  needs:
+    - job: build
+      artifacts: true
+    - job: filter:hibp
+      artifacts: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - /kaniko/executor
+      -v info
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/Dockerfile_filter"
+      --destination "${IMAGE_TAG_ENV}"
+      --destination "${IMAGE_TAG_V1}"
+      --destination "${IMAGE_TAG_GENERAL}"
+    - echo "Pushed to ${IMAGE_TAG_ENV}"
+    - echo "Pushed to ${IMAGE_TAG_V1}"
+    - echo "Pushed to ${IMAGE_TAG_GENERAL}"
