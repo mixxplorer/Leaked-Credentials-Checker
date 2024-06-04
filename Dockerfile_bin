@@ -1,4 +1,6 @@
 FROM debian:stable
 
+LABEL org.opencontainers.image.authors="leo@mixxplorer.de"
+
 COPY ./target/release/leaked-passwords-filter-tool /usr/local/bin/
 COPY ./target/release/lcc-web-api /usr/local/bin/
