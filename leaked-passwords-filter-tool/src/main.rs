@@ -81,6 +81,13 @@ fn main() -> Result<()> {
         .with_utc_timestamps()
         .init()?;
 
+    // see https://robertying.com/post/sigterm-docker/ for an explanation why this is necessary
+    ctrlc::set_handler(move || {
+        log::info!("received Ctrl+C! Exiting!");
+        std::process::exit(0);
+    })
+    .expect("Error setting Ctrl-C handler");
+
     log::info!("Starting reading of {}...", args.hash_file);
     let password_hash_file = lcc_lib::password_filter::PasswordHashFile::from_file_name(args.hash_file.clone())?;
     log::info!("Reading of {} finished! Length of file is {}", args.hash_file, password_hash_file.iter()?.len());

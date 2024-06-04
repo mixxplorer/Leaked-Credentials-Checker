@@ -60,6 +60,13 @@ async fn main() -> Result<()> {
         .with_utc_timestamps()
         .init()?;
 
+    // see https://robertying.com/post/sigterm-docker/ for an explanation why this is necessary
+    ctrlc::set_handler(move || {
+        log::info!("received Ctrl+C! Exiting!");
+        std::process::exit(0);
+    })
+    .expect("Error setting Ctrl-C handler");
+
     log::info!("Constructing app state...");
     let state = AppState::new(&args.filter_file)?;
     log::info!("Done constructing app state!");
