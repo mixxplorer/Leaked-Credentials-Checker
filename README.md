@@ -15,7 +15,7 @@ You can use a prepared filter from us or build the software yourself. For buildi
 We provide a [Docker image](./Dockerfile_filter), which contains the Have I been pwned filter as well as the web API binaries. It might incorporate more sources in future when they become available. You can run it like
 
 ```bash
-docker run -it --rm -p 127.0.0.1:3000:3000 --name lcc-api dr.rechenknecht.net/mixxplorer/lcc/lcc:api-latest-all
+docker run -it --rm -p 127.0.0.1:3000:3000 --name lcc-api dr.rechenknecht.net/mixxplorer/lcc/lcc/main:api-latest-all
 
 # request API
 curl 'http://localhost:3000/v1/hashes/check' -X POST -H 'Content-Type: application/json' --data-raw $'{\n"hash": "1000000A0E3B9F25FF41DE4B5A"\n}' -v
@@ -24,7 +24,7 @@ curl 'http://localhost:3000/v1/hashes/check' -X POST -H 'Content-Type: applicati
 We also provide a much smaller image just containing the binaries:
 
 ```bash
-docker run -it --rm -p 127.0.0.1:3000:3000 --name lcc-api dr.rechenknecht.net/mixxplorer/lcc/lcc:bin-latest
+docker run -it --rm -p 127.0.0.1:3000:3000 --name lcc-api dr.rechenknecht.net/mixxplorer/lcc/lcc/main:bin-latest
 ```
 
 You can make use of the following tags per image:
