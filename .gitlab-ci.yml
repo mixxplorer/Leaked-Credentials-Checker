@@ -99,7 +99,7 @@ docker:api-all:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
     - /kaniko/executor
-      -v info
+      -v warn
       --context "${CI_PROJECT_DIR}"
       --dockerfile "${CI_PROJECT_DIR}/Dockerfile_filter"
       --destination "${IMAGE_TAG_ENV}"
