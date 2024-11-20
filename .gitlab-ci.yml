@@ -64,7 +64,7 @@ docker:bin:
 
 filter:hibp:
   stage: filter
-  image: mcr.microsoft.com/dotnet/sdk
+  image: mcr.microsoft.com/dotnet/sdk:8.0-noble
   needs:
     - job: build
       artifacts: true
