@@ -93,7 +93,7 @@ impl aide::OperationOutput for WebAppError {
     type Inner = String;
 
     fn inferred_responses(
-        ctx: &mut aide::gen::GenContext,
+        ctx: &mut aide::generate::GenContext,
         _operation: &mut aide::openapi::Operation,
     ) -> std::vec::Vec<(std::option::Option<u16>, aide::openapi::Response)> {
         vec![

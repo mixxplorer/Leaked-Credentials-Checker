@@ -1,8 +1,5 @@
 use clap::Parser;
 use lcc_lib::constants::{DEFAULT_FILTER_FILE, DEFAULT_PASSWORD_HASH_FILE};
-use rand::prelude::*;
-
-use anyhow::{bail, Result};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -28,7 +25,7 @@ pub struct CliArguments {
     log_level: clap_verbosity_flag::Verbosity<clap_verbosity_flag::InfoLevel>,
 }
 
-fn test_filter(filter: lcc_lib::password_filter::PasswordFilter, password_hash_file: lcc_lib::password_filter::PasswordHashFile) -> Result<()> {
+fn test_filter(filter: lcc_lib::password_filter::PasswordFilter, password_hash_file: lcc_lib::password_filter::PasswordHashFile) -> anyhow::Result<()> {
     {
         log::info!("Testing for false negatives...");
         for key in password_hash_file.iter()? {
@@ -40,15 +37,15 @@ fn test_filter(filter: lcc_lib::password_filter::PasswordFilter, password_hash_f
     {
         // bits per entry
         let bpe = (filter.len() as f64) * 32.0 / (password_hash_file.length as f64);
-        log::info!("Bits per entry = {}", bpe);
+        log::info!("Bits per entry = {bpe}");
     }
     {
         log::info!("Checking false positive rate...");
         const TEST_ITERATIONS: u64 = 10_000_000_000;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let instant_fp = std::time::Instant::now();
         // false positive rate
-        let rand_positives: usize = (0..TEST_ITERATIONS).map(|_| rng.gen()).filter(|n| filter.contains(n)).count();
+        let rand_positives: usize = (0..TEST_ITERATIONS).map(|_| rand::Rng::random(&mut rng)).filter(|n| filter.contains(n)).count();
         let elapsed_fp = instant_fp.elapsed();
         log::info!(
             "Elapsed: {:.2?}, {:.10?} µs per entry",
@@ -66,14 +63,14 @@ fn test_filter(filter: lcc_lib::password_filter::PasswordFilter, password_hash_f
             rand_positive_rate - expected_rand_positive_rate
         );
         if rand_positive_rate - expected_rand_positive_rate > 0.001 {
-            bail!("false positive rate is higher than expected! (> 0.001%)");
+            anyhow::bail!("false positive rate is higher than expected! (> 0.001%)");
         }
     }
 
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let args = CliArguments::parse();
 
     simple_logger::SimpleLogger::new()

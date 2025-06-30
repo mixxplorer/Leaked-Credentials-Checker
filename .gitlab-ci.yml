@@ -41,7 +41,7 @@ test:small-filter:
 docker:bin:
   stage: pack
   image:
-    name: gcr.io/kaniko-project/executor:v1.15.0-debug
+    name: gcr.io/kaniko-project/executor:v1.23.0-debug
     entrypoint: [""]
   variables:
     IMAGE_TAG_ENV: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG:bin-b$CI_PIPELINE_IID
@@ -84,7 +84,7 @@ filter:hibp:
 docker:api-all:
   stage: pack
   image:
-    name: gcr.io/kaniko-project/executor:v1.15.0-debug
+    name: gcr.io/kaniko-project/executor:v1.23.0-debug
     entrypoint: [""]
   variables:
     IMAGE_TAG_ENV: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG:api-b${CI_PIPELINE_IID}-all

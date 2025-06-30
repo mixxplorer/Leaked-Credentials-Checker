@@ -1,14 +1,4 @@
-use std::sync::Arc;
-
-use aide::{
-    axum::{
-        routing::{get, post_with},
-        ApiRouter, IntoApiResponse,
-    },
-    openapi::{Info, OpenApi},
-    redoc::Redoc,
-};
-use anyhow::{Context, Result};
+use anyhow::Context;
 use clap::Parser;
 
 mod errors;
@@ -16,12 +6,12 @@ mod handlers;
 
 #[derive(Clone)]
 struct AppState {
-    hash_filter: Arc<lcc_lib::password_filter::PasswordFilter>,
+    hash_filter: std::sync::Arc<lcc_lib::password_filter::PasswordFilter>,
 }
 
 impl AppState {
-    fn new(filter_file_path: &String) -> Result<AppState> {
-        let hash_filter = Arc::new(
+    fn new(filter_file_path: &String) -> anyhow::Result<AppState> {
+        let hash_filter = std::sync::Arc::new(
             lcc_lib::password_filter::load_filter(filter_file_path)
                 .context("Loading filter unsuccessful? Does the filter exist and matches the filter version to the binary version?")?,
         );
@@ -47,12 +37,12 @@ pub struct CliArguments {
     log_level: clap_verbosity_flag::Verbosity<clap_verbosity_flag::InfoLevel>,
 }
 
-async fn serve_api(axum::Extension(api): axum::Extension<OpenApi>) -> impl IntoApiResponse {
+async fn serve_api(axum::Extension(api): axum::Extension<aide::openapi::OpenApi>) -> impl aide::axum::IntoApiResponse {
     axum::Json(api)
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> anyhow::Result<()> {
     let args = CliArguments::parse();
 
     simple_logger::SimpleLogger::new()
@@ -72,8 +62,8 @@ async fn main() -> Result<()> {
     log::info!("Done constructing app state!");
 
     // create metadata for API docs
-    let mut api = OpenApi {
-        info: Info {
+    let mut api = aide::openapi::OpenApi {
+        info: aide::openapi::Info {
             title: "Leaked Credentials Checker API".to_string(),
             description: Some("Check password hashes for their occurrence in known leaks.".to_string()),
             contact: Some(aide::openapi::Contact {
@@ -83,19 +73,22 @@ async fn main() -> Result<()> {
                 extensions: indexmap::IndexMap::new(),
             }),
             version: env!("CARGO_PKG_VERSION").to_string(),
-            ..Info::default()
+            ..aide::openapi::Info::default()
         },
-        ..OpenApi::default()
+        ..aide::openapi::OpenApi::default()
     };
 
     // build our application utilizing the ApiRouter from aide, allowing to automatically add doc
-    let app = ApiRouter::new()
+    let app = aide::axum::ApiRouter::new()
         // Add routes of official API
-        .api_route("/v1/hashes/check", post_with(handlers::check_hash, handlers::check_hash_desc))
+        .api_route(
+            "/v1/hashes/check",
+            aide::axum::routing::post_with(handlers::check_hash, handlers::check_hash_desc),
+        )
         // Add non-documented routes (e.g. displaying the docs)
-        .route("/docs/api.json", get(serve_api))
-        .route("/docs", Redoc::new("/docs/api.json").with_title("LCC API").axum_route())
-        .route("/", get(|| async { axum::response::Redirect::to("/docs") }))
+        .route("/docs/api.json", aide::axum::routing::get(serve_api))
+        .route("/docs", aide::redoc::Redoc::new("/docs/api.json").with_title("LCC API").axum_route())
+        .route("/", aide::axum::routing::get(|| async { axum::response::Redirect::to("/docs") }))
         // Add global API state
         .with_state(state)
         // Finish building the API
