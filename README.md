@@ -10,7 +10,7 @@ This software needs all password hashes downloaded as a file with one hash a lin
 
 ## Usage
 
-You can use a prepared filter from us or build the software yourself. For building, please see below.
+You can use a prepared filter from us or build the software yourself. For building, please see below. For running with the prepared filter, you need as much memory as the filter size, currently about 8 GB.
 
 We provide a [Docker image](./Dockerfile_filter), which contains the Have I been pwned filter as well as the web API binaries. It might incorporate more sources in future when they become available. You can run it like
 
