@@ -14,6 +14,6 @@ pub struct License {
 }
 
 pub fn get_error_id() -> String {
-    use rand::distributions::{Alphanumeric, DistString};
-    Alphanumeric.sample_string(&mut rand::thread_rng(), 10)
+    use rand::distr::{Alphanumeric, SampleString};
+    Alphanumeric.sample_string(&mut rand::rng(), 10)
 }

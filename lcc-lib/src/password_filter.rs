@@ -1,8 +1,6 @@
-use anyhow::{bail, Context, Result};
+use anyhow::Context;
 use itertools::Itertools;
 use xorf::Filter;
-
-use crate::{constants::BinaryFilterType, util};
 
 fn map_password_hash_lines(lines: std::io::Lines<std::io::BufReader<std::fs::File>>) -> impl Iterator<Item = u64> {
     lines
@@ -19,7 +17,7 @@ pub struct PasswordHashFile {
 }
 
 impl PasswordHashFile {
-    pub fn from_file_name(file_name: String) -> Result<Self> {
+    pub fn from_file_name(file_name: String) -> anyhow::Result<Self> {
         let file = std::io::BufReader::with_capacity(1024 * 1024 * 64, std::fs::File::open(&file_name)?);
         let lines = std::io::BufRead::lines(file);
         let length = map_password_hash_lines(lines).count();
@@ -27,7 +25,7 @@ impl PasswordHashFile {
         Ok(Self { file_name, length })
     }
 
-    pub fn iter(&self) -> Result<PasswordHashFileIterator> {
+    pub fn iter(&self) -> anyhow::Result<PasswordHashFileIterator> {
         PasswordHashFileIterator::from_file_name_with_length(self.file_name.clone(), self.length, 0)
     }
 }
@@ -39,15 +37,15 @@ pub struct PasswordHashFileIterator {
     lines_consumed: usize,
 }
 
-pub fn hash_string_to_filter_items(input: &String) -> Result<Vec<u64>> {
+pub fn hash_string_to_filter_items(input: &String) -> anyhow::Result<Vec<u64>> {
     if input.len() < 16 {
-        bail!("Given hash string '{}' too short (< 16 chars)", input)
+        anyhow::bail!("Given hash string '{}' too short (< 16 chars)", input)
     }
     Ok(vec![u64::from_str_radix(&input[0..16], 16)?])
 }
 
 impl PasswordHashFileIterator {
-    fn from_file_name_with_length(file_name: String, length: usize, skip_lines: usize) -> Result<Self> {
+    fn from_file_name_with_length(file_name: String, length: usize, skip_lines: usize) -> anyhow::Result<Self> {
         let reader = std::io::BufReader::new(std::fs::File::open(&file_name)?);
         let lines = std::io::BufRead::lines(reader);
 
@@ -84,8 +82,8 @@ impl ExactSizeIterator for PasswordHashFileIterator {
 
 #[derive(bincode::Encode, bincode::Decode)]
 pub struct PasswordFilter {
-    filter: BinaryFilterType,
-    pub licenses: Vec<util::License>,
+    filter: crate::constants::BinaryFilterType,
+    pub licenses: Vec<crate::util::License>,
 }
 
 impl PasswordFilter {
@@ -102,21 +100,21 @@ impl PasswordFilter {
     }
 }
 
-pub fn construct_filter(password_hash_file: &PasswordHashFile) -> Result<PasswordFilter> {
-    let filter = BinaryFilterType::try_from_iterator(password_hash_file.iter()?)
+pub fn construct_filter(password_hash_file: &PasswordHashFile) -> anyhow::Result<PasswordFilter> {
+    let filter = crate::constants::BinaryFilterType::try_from_iterator(password_hash_file.iter()?)
         .map_err(|op| anyhow::anyhow!(op.to_string()))
         .context("Constructing xor filter failed!")?;
     Ok(PasswordFilter {
         filter,
         licenses: vec![
-            util::License {
+            crate::util::License {
                 part: "XOR filter".to_string(),
                 author: "Mixxplorer GmbH".to_string(),
                 owner_url: "https://mixxplorer.de".to_string(),
                 project_url: "https://rechenknecht.net/mixxplorer/lcc/lcc".to_string(),
                 license: "MIT".to_string(),
             },
-            util::License {
+            crate::util::License {
                 part: "Leaked passwords".to_string(),
                 author: "Have I Been Pwned".to_string(),
                 owner_url: "https://haveibeenpwned.com".to_string(),
@@ -127,13 +125,13 @@ pub fn construct_filter(password_hash_file: &PasswordHashFile) -> Result<Passwor
     })
 }
 
-pub fn save_filter(filter: &PasswordFilter, filter_file: String) -> Result<()> {
+pub fn save_filter(filter: &PasswordFilter, filter_file: String) -> anyhow::Result<()> {
     let mut filter_file_fp = std::io::BufWriter::new(std::fs::File::create(filter_file)?);
     bincode::encode_into_std_write(filter, &mut filter_file_fp, bincode::config::standard())?;
     Ok(())
 }
 
-pub fn load_filter(filter_file: &String) -> Result<PasswordFilter> {
+pub fn load_filter(filter_file: &String) -> anyhow::Result<PasswordFilter> {
     let mut filter_file_fp = std::io::BufReader::with_capacity(1024 * 1024 * 64, std::fs::File::open(filter_file)?);
     Ok(bincode::decode_from_std_read(&mut filter_file_fp, bincode::config::standard())?)
 }
