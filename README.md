@@ -45,14 +45,14 @@ For a full list of available images, please see the [Container Registry](https:/
 
 ### Security considerations
 
-This software is intended to work with password hashes. As some of the passwords are expected to be found in the xor filter, it might be possible to retrieve the plain text password from the hash.
+This software is intended to work with password hashes. As some of the passwords are expected to be found in the XOR filter, it might be possible to retrieve the plain text password from the hash.
 
 Therefore, we recommend the following deployment details:
 
 * Only communicate with the API via secure means (run a TLS proxy in front of it, only use it via a VPN, etc.).
 * Do not allow the lcc container to access the internet, it does not need it during normal operation. Don't forget DNS request.
 * Do not allow the lcc container to access any other resource on the network beside answering connections to the API. The container will, under normal conditions, never start requests to other network resources.
-* Update the container regularily, see also our [security policy](./SECURITY.md).
+* Update the container regularly, see also our [security policy](./SECURITY.md).
 
 ## Building
 
