@@ -6,6 +6,12 @@ stages:
   - filter
   - pack
 
+variables:
+  # This will instruct Docker not to start over TLS.
+  DOCKER_TLS_CERTDIR: ""
+  # Disable running umask 000 during git clone, see https://gitlab.com/gitlab-org/gitlab-runner/-/issues/37304
+  FF_DISABLE_UMASK_FOR_DOCKER_EXECUTOR: "true"
+
 build:
   stage: build
   script:
@@ -39,10 +45,14 @@ test:small-filter:
     - build
 
 docker:bin:
+  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/docker:latest
+  services:
+    - name: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/docker:dind
+      alias: docker
   stage: pack
-  image:
-    name: gcr.io/kaniko-project/executor:v1.23.0-debug
-    entrypoint: [""]
+  tags:
+    # Use a privileged runner for building Docker container
+    - privileged
   variables:
     IMAGE_TAG_ENV: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG:bin-b$CI_PIPELINE_IID
     IMAGE_TAG_V1: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG:bin-v1
@@ -51,16 +61,14 @@ docker:bin:
     - job: build
       artifacts: true
   script:
-    - /kaniko/executor
-      -v warn
-      --context "${CI_PROJECT_DIR}"
-      --dockerfile "${CI_PROJECT_DIR}/Dockerfile_bin"
-      --destination "${IMAGE_TAG_ENV}"
-      --destination "${IMAGE_TAG_V1}"
-      --destination "${IMAGE_TAG_GENERAL}"
-    - echo "Pushed to ${IMAGE_TAG_ENV}"
-    - echo "Pushed to ${IMAGE_TAG_V1}"
-    - echo "Pushed to ${IMAGE_TAG_GENERAL}"
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build
+      -f "${CI_PROJECT_DIR}/Dockerfile_bin"
+      -t "${IMAGE_TAG_ENV}"
+      -t "${IMAGE_TAG_V1}"
+      -t "${IMAGE_TAG_GENERAL}"
+      --push
+      .
 
 filter:hibp:
   stage: filter
@@ -82,10 +90,14 @@ filter:hibp:
     when: always
 
 docker:api-all:
+  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/docker:latest
+  services:
+    - name: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/docker:dind
+      alias: docker
   stage: pack
-  image:
-    name: gcr.io/kaniko-project/executor:v1.23.0-debug
-    entrypoint: [""]
+  tags:
+    # Use a privileged runner for building Docker container
+    - privileged
   variables:
     IMAGE_TAG_ENV: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG:api-b${CI_PIPELINE_IID}-all
     IMAGE_TAG_V1: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG:api-v1-all
@@ -98,13 +110,11 @@ docker:api-all:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
-    - /kaniko/executor
-      -v warn
-      --context "${CI_PROJECT_DIR}"
-      --dockerfile "${CI_PROJECT_DIR}/Dockerfile_filter"
-      --destination "${IMAGE_TAG_ENV}"
-      --destination "${IMAGE_TAG_V1}"
-      --destination "${IMAGE_TAG_GENERAL}"
-    - echo "Pushed to ${IMAGE_TAG_ENV}"
-    - echo "Pushed to ${IMAGE_TAG_V1}"
-    - echo "Pushed to ${IMAGE_TAG_GENERAL}"
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build
+      -f "${CI_PROJECT_DIR}/Dockerfile_filter"
+      -t "${IMAGE_TAG_ENV}"
+      -t "${IMAGE_TAG_V1}"
+      -t "${IMAGE_TAG_GENERAL}"
+      --push
+      .
