@@ -10,8 +10,26 @@ pub struct HashCheckResponse {
     licenses: Vec<lcc_lib::util::License>,
 }
 
+#[derive(serde::Serialize, schemars::JsonSchema, aide::OperationIo)]
+#[aide(output)]
+pub struct HealthResponse {
+    operational: bool,
+    licenses: Vec<lcc_lib::util::License>,
+}
+
+pub fn health_desc(op: aide::transform::TransformOperation) -> aide::transform::TransformOperation {
+    op.description("Returns whether the API is healthy").id("health")
+}
+
 pub fn check_hash_desc(op: aide::transform::TransformOperation) -> aide::transform::TransformOperation {
     op.description("Checks whether a hash appeared in a known credential leak.").id("checkHash")
+}
+
+pub async fn health(axum::extract::State(state): axum::extract::State<crate::AppState>) -> Result<axum::Json<HealthResponse>, crate::errors::WebAppError> {
+    Ok(axum::Json(HealthResponse {
+        operational: true, // as soon as the API is reachable, it is also operational
+        licenses: state.hash_filter.licenses.clone(),
+    }))
 }
 
 pub async fn check_hash(
