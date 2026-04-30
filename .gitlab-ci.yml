@@ -33,16 +33,22 @@ lint:
     - cargo fmt --all -- --check
   needs: []
 
-test:small-filter:
+test:filter:
   image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/debian:stable
   stage: test
   script:
     - echo -n "test" | sha1sum > hashes
     - echo -n "test2" | sha1sum >> hashes
     - echo -n "test3" | sha1sum >> hashes
-    - target/release/leaked-passwords-filter-tool ./hashes ./filter.bincode -b
+    - target/release/leaked-passwords-filter-tool ./hashes target/release/test-filter.bincode -b
   needs:
-    - build
+    - job: build
+      artifacts: true
+  artifacts:
+    paths:
+      - target/release/test-filter.bincode
+    expire_in: 1 week
+    when: always
 
 docker:bin:
   image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/docker:latest
@@ -59,6 +65,8 @@ docker:bin:
     IMAGE_TAG_GENERAL: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG:bin-latest
   needs:
     - job: build
+      artifacts: true
+    - job: test:filter
       artifacts: true
   script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY

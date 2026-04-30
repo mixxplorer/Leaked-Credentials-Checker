@@ -1,4 +1,15 @@
 FROM debian:stable
 
+RUN apt-get update && apt-get install -y curl && apt-get clean
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --start-interval=5s --retries=5 CMD ["curl", "http://localhost:3000/v1/health", "-o", "/dev/null", "--silent", "--fail"]
+
 COPY ./target/release/leaked-passwords-filter-tool /usr/local/bin/
 COPY ./target/release/lcc-web-api /usr/local/bin/
+
+COPY ./target/release/test-filter.bincode /data/test-filter.bincode
+
+RUN useradd -ms /bin/bash lcc
+USER lcc
+
+ENTRYPOINT ["/usr/local/bin/lcc-web-api", "--filter-file", "/data/test-filter.bincode"]
+CMD ["--bind-addr", "0.0.0.0:3000"]

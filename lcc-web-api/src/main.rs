@@ -81,6 +81,7 @@ async fn main() -> anyhow::Result<()> {
     // build our application utilizing the ApiRouter from aide, allowing to automatically add doc
     let app = aide::axum::ApiRouter::new()
         // Add routes of official API
+        .api_route("/v1/health", aide::axum::routing::get_with(handlers::health, handlers::health_desc))
         .api_route(
             "/v1/hashes/check",
             aide::axum::routing::post_with(handlers::check_hash, handlers::check_hash_desc),
