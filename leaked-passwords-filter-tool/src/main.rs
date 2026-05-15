@@ -9,8 +9,8 @@ use lcc_lib::constants::{DEFAULT_FILTER_FILE, DEFAULT_PASSWORD_HASH_FILE};
     long_about = "CLI toolchain to build and test password filter. Currently, only Have I been pwned password hashes are utilized"
 )]
 pub struct CliArguments {
-    #[clap(default_value = DEFAULT_PASSWORD_HASH_FILE, help = "Path to password hash file, e.g. for checking entries or re-building the filter.")]
-    hash_file: String,
+    #[clap(default_value = DEFAULT_PASSWORD_HASH_FILE, help = "Path to directory of password hash files, e.g. for checking entries or re-building the filter.")]
+    hash_dir: String,
 
     #[clap(default_value = DEFAULT_FILTER_FILE, help = "Path to read and write the filter to. If re-building filter is requested, this file gets overwritten.")]
     filter_file: String,
@@ -25,7 +25,7 @@ pub struct CliArguments {
     log_level: clap_verbosity_flag::Verbosity<clap_verbosity_flag::InfoLevel>,
 }
 
-fn test_filter(filter: lcc_lib::password_filter::PasswordFilter, password_hash_file: lcc_lib::password_filter::PasswordHashFile) -> anyhow::Result<()> {
+fn test_filter(filter: lcc_lib::password_filter::PasswordFilter, password_hash_file: lcc_lib::password_filter::PasswordHashPath) -> anyhow::Result<()> {
     {
         log::info!("Testing for false negatives...");
         for key in password_hash_file.iter()? {
@@ -85,16 +85,16 @@ fn main() -> anyhow::Result<()> {
     })
     .expect("Error setting Ctrl-C handler");
 
-    log::info!("Starting reading of {}...", args.hash_file);
-    let password_hash_file = lcc_lib::password_filter::PasswordHashFile::from_file_name(args.hash_file.clone())?;
-    log::info!("Reading of {} finished! Length of file is {}", args.hash_file, password_hash_file.iter()?.len());
+    log::info!("Starting reading of {}...", args.hash_dir);
+    let password_hash_path = lcc_lib::password_filter::PasswordHashPath::from_directory_path(std::path::Path::new(&args.hash_dir))?;
+    log::info!("Reading of {} finished! Length of file is {}", args.hash_dir, password_hash_path.iter()?.len());
 
     let instant_filter = std::time::Instant::now();
     let filter = {
         if args.build_filter {
             log::info!("Starting construction of filter...");
 
-            lcc_lib::password_filter::construct_filter(&password_hash_file)?
+            lcc_lib::password_filter::construct_filter(&password_hash_path)?
         } else {
             log::info!("Starting loading of filter from {}...", args.filter_file);
             lcc_lib::password_filter::load_filter(&args.filter_file)?
@@ -107,7 +107,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     if args.skip_test_filter {
-        test_filter(filter, password_hash_file)?;
+        test_filter(filter, password_hash_path)?;
     }
 
     Ok(())
