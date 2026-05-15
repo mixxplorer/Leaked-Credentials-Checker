@@ -69,17 +69,19 @@ This software supports generating filters using Have I Been Pwned password hashe
 ### Download HaveIBeenPwned password hashes
 
 ```bash
-docker run -it --rm mcr.microsoft.com/dotnet/sdk /bin/bash
-export PATH="$PATH:/root/.dotnet/tools"
-dotnet tool install --global haveibeenpwned-downloader
-haveibeenpwned-downloader pwnedpasswords
+docker run -it --rm -v /path/to/your/local/data:/data python:3
+
+# In container
+pip install hibp-downloader
+pip install typing_extensions
+hibp-downloader --data-path /data/passwords download
 ```
 
-This will create the file `pwnedpasswords.txt`.
+This will create the directory `passwords` containing all pwned passwords.
 
 ### Generate and test filter
 
-`target/release/leaked-passwords-filter-tool pwnedpasswords.txt filter.bincode -b`
+`target/release/leaked-passwords-filter-tool passwords filter.bincode -b`
 
 For generating the filter file for the full pwnedpasswords set, you need about 35 GB of memory. You can make use of swap pretty efficiently.
 
