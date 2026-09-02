@@ -9,7 +9,6 @@
         }
     },
     "updateRemoteUserUID": true,
-    "postCreateCommand": "./.devcontainer/rust-setup.sh",
     "customizations": {
         // Configure properties specific to VS Code.
         "vscode": {
