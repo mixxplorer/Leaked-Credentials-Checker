@@ -3,14 +3,13 @@
     "name": "LCC Rust",
     "build": {
         // Path is relative to the devcontainer.json file.
-        "dockerfile": "Dockerfile",
+        "dockerfile": "Containerfile",
         "args": {
-            "REMOTE_USER": "${localEnv:USER}",
-            "REMOTE_UID": "${localEnv:REMOTE_UID:1000}",
-            "REMOTE_GID": "${localEnv:REMOTE_GID:1000}"
+            "REMOTE_USER": "${localEnv:USER:developer}"
         }
     },
-    "remoteUser": "${localEnv:USER}",
+    "updateRemoteUserUID": true,
+    "postCreateCommand": "./.devcontainer/rust-setup.sh",
     "customizations": {
         // Configure properties specific to VS Code.
         "vscode": {

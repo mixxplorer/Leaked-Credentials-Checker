@@ -1,8 +1,8 @@
 FROM rust:1
 
-ARG REMOTE_USER
-ARG REMOTE_UID
-ARG REMOTE_GID
+ARG REMOTE_USER=developer
+ARG REMOTE_UID=992
+ARG REMOTE_GID=992
 
 RUN groupadd --gid $REMOTE_GID $REMOTE_USER \
     && useradd --uid $REMOTE_UID --gid $REMOTE_GID -m $REMOTE_USER -s /bin/bash
@@ -11,8 +11,6 @@ RUN groupadd --gid $REMOTE_GID $REMOTE_USER \
 # RUN apt-get update && apt-get install -y sudo
 # RUN echo $REMOTE_USER ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$REMOTE_USER
 
+# This must be the last step as the REMOTE_UID is not set here, apparently it is not possible
+# to setup users properly during container build.
 USER $REMOTE_USER
-
-RUN rustup component add rustfmt
-RUN rustup component add clippy
-RUN cargo install cargo-audit --locked --features=fix
