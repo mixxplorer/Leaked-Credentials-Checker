@@ -74,14 +74,16 @@ docker run -it --rm -v /path/to/your/local/data:/data python:3
 # In container
 pip install hibp-downloader
 pip install typing_extensions
-hibp-downloader --data-path /data/passwords download
+hibp-downloader --data-path ./target/data/passwords download
 ```
 
 This will create the directory `passwords` containing all pwned passwords.
 
 ### Generate and test filter
 
-`target/release/leaked-passwords-filter-tool passwords filter.bincode -b`
+```
+cargo run --release --bin leaked-passwords-filter-tool ./target/data/passwords filter.bincode -b
+```
 
 For generating the filter file for the full pwnedpasswords set, you need about 35 GB of memory. You can make use of swap pretty efficiently.
 
