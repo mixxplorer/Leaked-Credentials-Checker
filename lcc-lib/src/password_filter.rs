@@ -39,22 +39,22 @@ impl PasswordHashPath {
     pub fn from_directory_path(base_path: &std::path::Path) -> anyhow::Result<Self> {
         let file_names = generate_file_names(base_path.to_path_buf());
 
+        let error_count = std::sync::Arc::new(std::sync::Mutex::<u64>::new(0));
+        let error_count_map = error_count.clone();
+
         let lines: Box<dyn Iterator<Item = std::io::Result<String>>> = Box::new(
             file_names
                 .map(
-                    |name| -> anyhow::Result<std::io::Lines<std::io::BufReader<flate2::read::GzDecoder<std::fs::File>>>> {
+                    move |name| -> anyhow::Result<std::io::Lines<std::io::BufReader<flate2::read::GzDecoder<std::fs::File>>>> {
                         let file_res = std::fs::File::open(name.clone());
                         if let Err(ref err) = file_res {
                             log::error!("File open error: {:?} for {:?}", err, name);
+                            *error_count_map.lock().unwrap() += 1;
                         }
-                        let res = Ok(std::io::BufRead::lines(std::io::BufReader::with_capacity(
+                        Ok(std::io::BufRead::lines(std::io::BufReader::with_capacity(
                             1024,
                             flate2::read::GzDecoder::new(file_res?),
-                        )));
-                        if let Err(ref err) = res {
-                            log::error!("File read error: {:?} for {:?}", err, name);
-                        }
-                        res
+                        )))
                     },
                 )
                 .filter_map(Result::ok)
@@ -62,6 +62,13 @@ impl PasswordHashPath {
         );
 
         let length = map_password_hash_lines(lines).count();
+
+        let locked_error_count = error_count
+            .lock()
+            .map_err(|err| anyhow::anyhow!("Unable to obtain error count lock: {:?}", err))?;
+        if *locked_error_count > 0 {
+            anyhow::bail!("Encountered {} errors during hash file reading.", locked_error_count);
+        }
 
         Ok(Self {
             base_path: base_path.to_path_buf(),
@@ -95,15 +102,14 @@ impl PasswordHashFileIterator {
         let lines: Box<dyn Iterator<Item = std::io::Result<String>>> = Box::new(
             file_names
                 .map(
-                    |name| -> anyhow::Result<std::io::Lines<std::io::BufReader<flate2::read::GzDecoder<std::fs::File>>>> {
-                        let file = std::fs::File::open(name.clone())?;
-                        Ok(std::io::BufRead::lines(std::io::BufReader::with_capacity(
-                            1024 * 1024 * 64,
+                    |name| -> std::io::Lines<std::io::BufReader<flate2::read::GzDecoder<std::fs::File>>> {
+                        let file = std::fs::File::open(name.clone()).unwrap();
+                        std::io::BufRead::lines(std::io::BufReader::with_capacity(
+                            1024,
                             flate2::read::GzDecoder::new(file),
-                        )))
+                        ))
                     },
                 )
-                .filter_map(Result::ok)
                 .flatten(),
         );
 
