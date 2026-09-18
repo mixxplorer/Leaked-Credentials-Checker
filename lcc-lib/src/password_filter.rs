@@ -43,11 +43,18 @@ impl PasswordHashPath {
             file_names
                 .map(
                     |name| -> anyhow::Result<std::io::Lines<std::io::BufReader<flate2::read::GzDecoder<std::fs::File>>>> {
-                        let file = std::fs::File::open(name.clone())?;
-                        Ok(std::io::BufRead::lines(std::io::BufReader::with_capacity(
-                            1024 * 1024 * 64,
-                            flate2::read::GzDecoder::new(file),
-                        )))
+                        let file_res = std::fs::File::open(name.clone());
+                        if let Err(ref err) = file_res {
+                            log::error!("File open error: {:?} for {:?}", err, name);
+                        }
+                        let res = Ok(std::io::BufRead::lines(std::io::BufReader::with_capacity(
+                            1024,
+                            flate2::read::GzDecoder::new(file_res?),
+                        )));
+                        if let Err(ref err) = res {
+                            log::error!("File read error: {:?} for {:?}", err, name);
+                        }
+                        res
                     },
                 )
                 .filter_map(Result::ok)
