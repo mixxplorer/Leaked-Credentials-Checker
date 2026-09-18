@@ -36,7 +36,7 @@ pub struct PasswordHashPath {
 }
 
 impl PasswordHashPath {
-    pub fn from_directory_path(base_path: &std::path::Path) -> anyhow::Result<Self> {
+    pub fn from_directory_path(base_path: &std::path::Path, test_mode: bool) -> anyhow::Result<Self> {
         let file_names = generate_file_names(base_path.to_path_buf());
 
         let error_count = std::sync::Arc::new(std::sync::Mutex::<u64>::new(0));
@@ -47,7 +47,7 @@ impl PasswordHashPath {
                 .map(
                     move |name| -> anyhow::Result<std::io::Lines<std::io::BufReader<flate2::read::GzDecoder<std::fs::File>>>> {
                         let file_res = std::fs::File::open(name.clone());
-                        if let Err(ref err) = file_res {
+                        if !test_mode && let Err(ref err) = file_res {
                             log::error!("File open error: {:?} for {:?}", err, name);
                             *error_count_map.lock().unwrap() += 1;
                         }
@@ -102,14 +102,15 @@ impl PasswordHashFileIterator {
         let lines: Box<dyn Iterator<Item = std::io::Result<String>>> = Box::new(
             file_names
                 .map(
-                    |name| -> std::io::Lines<std::io::BufReader<flate2::read::GzDecoder<std::fs::File>>> {
-                        let file = std::fs::File::open(name.clone()).unwrap();
-                        std::io::BufRead::lines(std::io::BufReader::with_capacity(
+                    |name| -> anyhow::Result<std::io::Lines<std::io::BufReader<flate2::read::GzDecoder<std::fs::File>>>> {
+                        let file = std::fs::File::open(name.clone())?;
+                        Ok(std::io::BufRead::lines(std::io::BufReader::with_capacity(
                             1024,
                             flate2::read::GzDecoder::new(file),
-                        ))
+                        )))
                     },
                 )
+                .filter_map(Result::ok)
                 .flatten(),
         );
 

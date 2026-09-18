@@ -21,6 +21,9 @@ pub struct CliArguments {
     #[clap(short, long, action = clap::ArgAction::SetFalse, help = "Do not run tests against filter. Skip checking for false positives and false negatives.")]
     skip_test_filter: bool,
 
+    #[clap(short, long, action = clap::ArgAction::SetTrue, help = "Do not error if some hash files are missing.")]
+    test_mode: bool,
+
     #[clap(flatten)]
     log_level: clap_verbosity_flag::Verbosity<clap_verbosity_flag::InfoLevel>,
 }
@@ -86,7 +89,7 @@ fn main() -> anyhow::Result<()> {
     .expect("Error setting Ctrl-C handler");
 
     log::info!("Starting reading of {}...", args.hash_dir);
-    let password_hash_path = lcc_lib::password_filter::PasswordHashPath::from_directory_path(std::path::Path::new(&args.hash_dir))?;
+    let password_hash_path = lcc_lib::password_filter::PasswordHashPath::from_directory_path(std::path::Path::new(&args.hash_dir), args.test_mode)?;
     log::info!("Reading of {} finished! Length of file is {}", args.hash_dir, password_hash_path.iter()?.len());
 
     let instant_filter = std::time::Instant::now();

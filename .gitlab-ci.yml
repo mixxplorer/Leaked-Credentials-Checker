@@ -44,7 +44,7 @@ test:filter:
     - mkdir -p hashes/sha1/00/00/
     - echo -n "test3" | sha1sum > hashes/sha1/00/00/00007
     - gzip hashes/sha1/00/00/00007
-    - target/release/leaked-passwords-filter-tool ./hashes target/release/test-filter.bincode -b
+    - target/release/leaked-passwords-filter-tool ./hashes target/release/test-filter.bincode -b --test-mode
   needs:
     - job: build
       artifacts: true
