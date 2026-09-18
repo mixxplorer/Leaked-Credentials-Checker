@@ -12,13 +12,13 @@ fn map_password_hash_lines(lines: Box<dyn Iterator<Item = std::io::Result<String
 }
 
 fn generate_file_names(base_path: std::path::PathBuf) -> impl Iterator<Item = std::path::PathBuf> {
-    (0..256).flat_map(move |first| {
+    (0..0x100).flat_map(move |first| {
         let base_path = base_path.clone();
-        (0..256).flat_map(move |second| {
+        (0..0x100).flat_map(move |second| {
             let base_path = base_path.clone();
             let first_path = format!("{first:02x}");
             let second_path = format!("{second:02x}");
-            (0..16).map(move |third| {
+            (0..0x10).map(move |third| {
                 let third_path = format!("{third:01x}");
                 base_path
                     .join("sha1")
