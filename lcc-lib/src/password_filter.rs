@@ -1,55 +1,115 @@
 use anyhow::Context;
-use itertools::Itertools;
 use xorf::Filter;
 
-fn map_password_hash_lines(lines: Box<dyn Iterator<Item = std::io::Result<String>>>) -> impl Iterator<Item = u64> {
-    lines
-        .map_while(Result::ok)
-        .map(|line: String| hash_string_to_filter_items(&line))
-        .filter_map(Result::ok)
-        .flatten()
-        .dedup()
+#[derive(Clone, Debug)]
+pub struct PasswordHashPath<LengthSet>
+where
+    LengthSet: crate::types::AttributeState,
+{
+    pub base_path: std::path::PathBuf,
+    length: Option<usize>,
+    test_mode: bool,
+    length_set: std::marker::PhantomData<LengthSet>,
 }
 
-fn generate_file_names(base_path: std::path::PathBuf) -> impl Iterator<Item = std::path::PathBuf> {
-    (0..0x100).flat_map(move |first| {
-        let base_path = base_path.clone();
-        (0..0x100).flat_map(move |second| {
+impl PasswordHashPath<crate::types::AttributeNotSet> {
+    pub fn from_directory_path(base_path: &std::path::Path, test_mode: bool) -> anyhow::Result<Self> {
+        Ok(Self {
+            base_path: base_path.to_path_buf(),
+            length: None,
+            test_mode,
+            length_set: std::marker::PhantomData,
+        })
+    }
+
+    /// Calculates number of entries of password hash path
+    pub fn populate_length(self) -> anyhow::Result<PasswordHashPath<crate::types::AttributeSet>> {
+        let length = {
+            let (error_count, lines) = self.get_password_iterator_hashes();
+            let count = lines.count();
+
+            let locked_error_count = error_count
+                .lock()
+                .map_err(|err| anyhow::anyhow!("Unable to obtain error count lock: {:?}", err))?;
+            if *locked_error_count > 0 {
+                anyhow::bail!("Encountered {} errors during hash file reading.", locked_error_count);
+            }
+            count
+        };
+
+        Ok(PasswordHashPath {
+            base_path: self.base_path,
+            length: Some(length),
+            test_mode: self.test_mode,
+            length_set: std::marker::PhantomData,
+        })
+    }
+}
+
+impl PasswordHashPath<crate::types::AttributeSet> {
+    /// Returns the number of hash entries in path
+    pub fn len(&self) -> usize {
+        self.length.unwrap()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn iter(&self) -> anyhow::Result<PasswordHashFileIterator> {
+        PasswordHashFileIterator::from_password_hash_path_with_length(self.clone(), 0)
+    }
+}
+
+impl<LengthSet> PasswordHashPath<LengthSet>
+where
+    LengthSet: crate::types::AttributeState + Send + Sync + 'static,
+{
+    fn generate_file_names(base_path: std::path::PathBuf) -> impl Iterator<Item = std::path::PathBuf> {
+        (0..0x100).flat_map(move |first| {
             let base_path = base_path.clone();
-            let first_path = format!("{first:02x}");
-            let second_path = format!("{second:02x}");
-            (0..0x10).map(move |third| {
-                let third_path = format!("{third:01x}");
-                base_path
-                    .join("sha1")
-                    .join(&first_path)
-                    .join(&second_path)
-                    .join(format!("{first_path}{second_path}{third_path}.gz"))
+            (0..0x100).flat_map(move |second| {
+                let base_path = base_path.clone();
+                let first_path = format!("{first:02x}");
+                let second_path = format!("{second:02x}");
+                (0..0x10).map(move |third| {
+                    let third_path = format!("{third:01x}");
+                    base_path
+                        .join("sha1")
+                        .join(&first_path)
+                        .join(&second_path)
+                        .join(format!("{first_path}{second_path}{third_path}.gz"))
+                })
             })
         })
-    })
-}
+    }
 
-pub struct PasswordHashPath {
-    pub base_path: std::path::PathBuf,
-    pub length: usize,
-}
+    /// Returns password hashes, shortened and formatted for bincode filter as a rayon parallel iterator
+    pub fn get_password_iterator_hashes(&self) -> (std::sync::Arc<std::sync::Mutex<u64>>, Box<impl Iterator<Item = u64> + 'static>) {
+        let base_path = self.base_path.clone();
 
-impl PasswordHashPath {
-    pub fn from_directory_path(base_path: &std::path::Path, test_mode: bool) -> anyhow::Result<Self> {
-        let file_names = generate_file_names(base_path.to_path_buf());
+        Self::get_password_iterator_hashes_static(base_path, self.test_mode)
+    }
+
+    /// Returns password hashes, shortened and formatted for bincode filter as a rayon parallel iterator, internal static version
+    fn get_password_iterator_hashes_static(
+        base_path: std::path::PathBuf,
+        test_mode: bool,
+    ) -> (std::sync::Arc<std::sync::Mutex<u64>>, Box<impl Iterator<Item = u64>>) {
+        let file_names = Self::generate_file_names(base_path.to_path_buf());
 
         let error_count = std::sync::Arc::new(std::sync::Mutex::<u64>::new(0));
-        let error_count_map = error_count.clone();
+        let error_count_map_1 = error_count.clone();
+        let error_count_map_2 = error_count.clone();
 
-        let lines: Box<dyn Iterator<Item = std::io::Result<String>>> = Box::new(
+        let lines = Box::new(
             file_names
                 .map(
                     move |name| -> anyhow::Result<std::io::Lines<std::io::BufReader<flate2::read::GzDecoder<std::fs::File>>>> {
                         let file_res = std::fs::File::open(name.clone());
                         if !test_mode && let Err(ref err) = file_res {
                             log::error!("File open error: {:?} for {:?}", err, name);
-                            *error_count_map.lock().unwrap() += 1;
+                            *error_count_map_1.lock().unwrap() += 1;
                         }
                         Ok(std::io::BufRead::lines(std::io::BufReader::with_capacity(
                             1024,
@@ -58,33 +118,30 @@ impl PasswordHashPath {
                     },
                 )
                 .filter_map(Result::ok)
-                .flatten(),
+                .flat_map(move |lines| {
+                    lines
+                        .into_iter()
+                        .map(|line_res| {
+                            if let Err(ref error) = line_res {
+                                log::error!("File line parsing error: {:?}", error);
+                                *error_count_map_2.lock().unwrap() += 1;
+                            }
+                            line_res
+                        })
+                        .filter_map(Result::ok)
+                        .collect::<Vec<String>>()
+                }),
         );
 
-        let length = map_password_hash_lines(lines).count();
+        let lines = lines.map(|line: String| hash_string_to_filter_items(&line)).filter_map(Result::ok).flatten();
 
-        let locked_error_count = error_count
-            .lock()
-            .map_err(|err| anyhow::anyhow!("Unable to obtain error count lock: {:?}", err))?;
-        if *locked_error_count > 0 {
-            anyhow::bail!("Encountered {} errors during hash file reading.", locked_error_count);
-        }
-
-        Ok(Self {
-            base_path: base_path.to_path_buf(),
-            length,
-        })
-    }
-
-    pub fn iter(&self) -> anyhow::Result<PasswordHashFileIterator> {
-        PasswordHashFileIterator::from_base_path_with_length(&self.base_path, self.length, 0)
+        (error_count, Box::new(lines))
     }
 }
 
 pub struct PasswordHashFileIterator {
-    pub base_path: std::path::PathBuf,
+    pub path: PasswordHashPath<crate::types::AttributeSet>,
     iterator: Box<dyn Iterator<Item = u64>>,
-    length: usize,
     lines_consumed: usize,
 }
 
@@ -96,37 +153,21 @@ pub fn hash_string_to_filter_items(input: &String) -> anyhow::Result<Vec<u64>> {
 }
 
 impl PasswordHashFileIterator {
-    fn from_base_path_with_length(base_path: &std::path::Path, length: usize, skip_lines: usize) -> anyhow::Result<Self> {
-        let file_names = generate_file_names(base_path.to_path_buf());
+    fn from_password_hash_path_with_length(path: PasswordHashPath<crate::types::AttributeSet>, skip_lines: usize) -> anyhow::Result<Self> {
+        // ignore errors here, as they were checked during line/entry counting
+        let (_errors, filtered_iterator) = path.get_password_iterator_hashes();
 
-        let lines: Box<dyn Iterator<Item = std::io::Result<String>>> = Box::new(
-            file_names
-                .map(
-                    |name| -> anyhow::Result<std::io::Lines<std::io::BufReader<flate2::read::GzDecoder<std::fs::File>>>> {
-                        let file = std::fs::File::open(name.clone())?;
-                        Ok(std::io::BufRead::lines(std::io::BufReader::with_capacity(
-                            1024,
-                            flate2::read::GzDecoder::new(file),
-                        )))
-                    },
-                )
-                .filter_map(Result::ok)
-                .flatten(),
-        );
-
-        let filtered = map_password_hash_lines(lines).skip(skip_lines);
         Ok(PasswordHashFileIterator {
-            iterator: Box::new(filtered),
-            length,
+            iterator: Box::new(filtered_iterator.skip(skip_lines)),
             lines_consumed: 0,
-            base_path: base_path.to_path_buf(),
+            path,
         })
     }
 }
 
 impl Clone for PasswordHashFileIterator {
     fn clone(&self) -> Self {
-        Self::from_base_path_with_length(&self.base_path, self.length, self.lines_consumed).unwrap()
+        Self::from_password_hash_path_with_length(self.path.clone(), self.lines_consumed).unwrap()
     }
 }
 
@@ -141,7 +182,7 @@ impl Iterator for PasswordHashFileIterator {
 
 impl ExactSizeIterator for PasswordHashFileIterator {
     fn len(&self) -> usize {
-        self.length
+        self.path.len()
     }
 }
 
@@ -165,7 +206,7 @@ impl PasswordFilter {
     }
 }
 
-pub fn construct_filter(password_hash_file: &PasswordHashPath) -> anyhow::Result<PasswordFilter> {
+pub fn construct_filter(password_hash_file: &PasswordHashPath<crate::types::AttributeSet>) -> anyhow::Result<PasswordFilter> {
     let filter = crate::constants::BinaryFilterType::try_from_iterator(password_hash_file.iter()?)
         .map_err(|op| anyhow::anyhow!(op.to_string()))
         .context("Constructing xor filter failed!")?;

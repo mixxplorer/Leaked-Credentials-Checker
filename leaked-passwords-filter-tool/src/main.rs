@@ -28,7 +28,10 @@ pub struct CliArguments {
     log_level: clap_verbosity_flag::Verbosity<clap_verbosity_flag::InfoLevel>,
 }
 
-fn test_filter(filter: lcc_lib::password_filter::PasswordFilter, password_hash_file: lcc_lib::password_filter::PasswordHashPath) -> anyhow::Result<()> {
+fn test_filter(
+    filter: lcc_lib::password_filter::PasswordFilter,
+    password_hash_file: lcc_lib::password_filter::PasswordHashPath<lcc_lib::types::AttributeSet>,
+) -> anyhow::Result<()> {
     {
         log::info!("Testing for false negatives...");
         for key in password_hash_file.iter()? {
@@ -39,7 +42,7 @@ fn test_filter(filter: lcc_lib::password_filter::PasswordFilter, password_hash_f
 
     {
         // bits per entry
-        let bpe = (filter.len() as f64) * 32.0 / (password_hash_file.length as f64);
+        let bpe = (filter.len() as f64) * 32.0 / (password_hash_file.len() as f64);
         log::info!("Bits per entry = {bpe}");
     }
     {
@@ -58,7 +61,7 @@ fn test_filter(filter: lcc_lib::password_filter::PasswordFilter, password_hash_f
 
         let rand_positive_rate: f64 = (rand_positives * 100) as f64 / (TEST_ITERATIONS) as f64;
         // Expected rand rate depends on portion of range that is occupied with leaked passwords
-        let expected_rand_positive_rate: f64 = (password_hash_file.length * 100) as f64 / (2_i128.pow(64)) as f64;
+        let expected_rand_positive_rate: f64 = (password_hash_file.len() * 100) as f64 / (2_i128.pow(64)) as f64;
         log::error!(
             "Random positive rate is {}%, while expected rate is {}%. Difference is {}%",
             rand_positive_rate,
@@ -89,7 +92,8 @@ fn main() -> anyhow::Result<()> {
     .expect("Error setting Ctrl-C handler");
 
     log::info!("Starting reading of {}...", args.hash_dir);
-    let password_hash_path = lcc_lib::password_filter::PasswordHashPath::from_directory_path(std::path::Path::new(&args.hash_dir), args.test_mode)?;
+    let password_hash_path =
+        lcc_lib::password_filter::PasswordHashPath::from_directory_path(std::path::Path::new(&args.hash_dir), args.test_mode)?.populate_length()?;
     log::info!("Reading of {} finished! Length of file is {}", args.hash_dir, password_hash_path.iter()?.len());
 
     let instant_filter = std::time::Instant::now();
