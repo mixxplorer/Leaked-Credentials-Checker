@@ -37,6 +37,10 @@ fn test_filter(
         for key in password_hash_file.iter()? {
             assert!(filter.contains(&key));
         }
+        // Ensure the file reading has no error like wrongly reading the hashes, test the password "test", which should definitely be included
+        for key in lcc_lib::password_filter::hash_string_to_filter_items(&"a94a8fe5ccb19ba61c4c0873d391e987982fbbd3".to_owned())? {
+            assert!(filter.contains(&key))
+        }
         log::info!("All checked! No false negative encountered!");
     }
 
@@ -51,7 +55,10 @@ fn test_filter(
         let mut rng = rand::rng();
         let instant_fp = std::time::Instant::now();
         // false positive rate
-        let rand_positives: usize = (0..TEST_ITERATIONS).map(|_| rand::RngExt::random(&mut rng)).filter(|n| filter.contains(n)).count();
+        let rand_positives: usize = (0..TEST_ITERATIONS)
+            .map(|_| rand::RngExt::random(&mut rng))
+            .filter(|n| filter.contains(n))
+            .count();
         let elapsed_fp = instant_fp.elapsed();
         log::info!(
             "Elapsed: {:.2?}, {:.10?} µs per entry",
