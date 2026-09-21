@@ -89,8 +89,8 @@ filter:hibp:
   needs:
     - job: build
       artifacts: true
-  # rules:
-  #   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
     - pip install hibp-downloader
     - pip install typing_extensions
@@ -121,7 +121,7 @@ docker:api-all:
     - job: filter:hibp
       artifacts: true
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker build
