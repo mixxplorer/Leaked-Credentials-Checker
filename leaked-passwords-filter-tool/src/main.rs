@@ -51,7 +51,7 @@ fn test_filter(
         let mut rng = rand::rng();
         let instant_fp = std::time::Instant::now();
         // false positive rate
-        let rand_positives: usize = (0..TEST_ITERATIONS).map(|_| rand::Rng::random(&mut rng)).filter(|n| filter.contains(n)).count();
+        let rand_positives: usize = (0..TEST_ITERATIONS).map(|_| rand::RngExt::random(&mut rng)).filter(|n| filter.contains(n)).count();
         let elapsed_fp = instant_fp.elapsed();
         log::info!(
             "Elapsed: {:.2?}, {:.10?} µs per entry",
