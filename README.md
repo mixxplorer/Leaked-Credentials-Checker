@@ -82,7 +82,7 @@ This will create the directory `passwords` containing all pwned passwords.
 ### Generate and test filter
 
 ```
-cargo run --release --bin leaked-passwords-filter-tool ./target/data/passwords filter.bincode -b
+cargo run --release --bin leaked-passwords-filter-tool ./target/data/passwords filter.bincode -b --test-mode
 ```
 
 For generating the filter file for the full pwnedpasswords set, you need about 35 GB of memory. You can make use of swap pretty efficiently.
@@ -90,7 +90,7 @@ For generating the filter file for the full pwnedpasswords set, you need about 3
 ### Run web API
 
 ```bash
-target/release/lcc-web-api -f filter.bincode
+cargo run --release --bin lcc-web-api -- -f filter.bincode -b 0.0.0.0:3000
 ```
 
 After starting the API, you can request it like this: `curl 'http://localhost:3000/v1/hashes/check' -X POST -H 'Content-Type: application/json' --data-raw $'{\n"hash": "1000000B0E6B3F21"\n}'`
