@@ -65,7 +65,7 @@ impl<LengthSet> PasswordHashPath<LengthSet>
 where
     LengthSet: crate::types::AttributeState + Send + Sync + 'static,
 {
-    fn generate_file_names(base_path: std::path::PathBuf) -> impl Iterator<Item = std::path::PathBuf> {
+    fn generate_file_names(base_path: std::path::PathBuf) -> impl Iterator<Item = (std::path::PathBuf, String)> {
         (0..0x100).flat_map(move |first| {
             let base_path = base_path.clone();
             (0..0x100).flat_map(move |second| {
@@ -74,11 +74,11 @@ where
                 let second_path = format!("{second:02x}");
                 (0..0x10).map(move |third| {
                     let third_path = format!("{third:01x}");
-                    base_path
-                        .join("sha1")
-                        .join(&first_path)
-                        .join(&second_path)
-                        .join(format!("{first_path}{second_path}{third_path}.gz"))
+                    let hash_start = format!("{first_path}{second_path}{third_path}");
+                    (
+                        base_path.join("sha1").join(&first_path).join(&second_path).join(format!("{hash_start}.gz")),
+                        hash_start,
+                    )
                 })
             })
         })
@@ -105,28 +105,29 @@ where
         let lines = Box::new(
             file_names
                 .map(
-                    move |name| -> anyhow::Result<std::io::Lines<std::io::BufReader<flate2::read::GzDecoder<std::fs::File>>>> {
-                        let file_res = std::fs::File::open(name.clone());
+                    move |(path, hash_start)| -> anyhow::Result<(std::io::Lines<std::io::BufReader<flate2::read::GzDecoder<std::fs::File>>>, String)> {
+                        let file_res = std::fs::File::open(path.clone());
                         if !test_mode && let Err(ref err) = file_res {
-                            log::error!("File open error: {:?} for {:?}", err, name);
+                            log::error!("File open error: {:?} for {:?}", err, path);
                             *error_count_map_1.lock().unwrap() += 1;
                         }
-                        Ok(std::io::BufRead::lines(std::io::BufReader::with_capacity(
-                            1024,
-                            flate2::read::GzDecoder::new(file_res?),
-                        )))
+                        Ok((
+                            std::io::BufRead::lines(std::io::BufReader::with_capacity(1024, flate2::read::GzDecoder::new(file_res?))),
+                            hash_start,
+                        ))
                     },
                 )
                 .filter_map(Result::ok)
-                .flat_map(move |lines| {
+                .flat_map(move |(lines, hash_start)| {
                     lines
                         .into_iter()
                         .map(|line_res| {
                             if let Err(ref error) = line_res {
                                 log::error!("File line parsing error: {:?}", error);
                                 *error_count_map_2.lock().unwrap() += 1;
+                                return line_res;
                             }
-                            line_res
+                            Ok(format!("{hash_start}{}", line_res.unwrap()))
                         })
                         .filter_map(Result::ok)
                         .collect::<Vec<String>>()
