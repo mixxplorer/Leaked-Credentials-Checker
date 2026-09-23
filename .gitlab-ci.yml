@@ -37,13 +37,14 @@ test:filter:
   image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/debian:stable
   stage: test
   script:
-    - mkdir -p hashes/sha1/12/34/
-    - echo -n "test" | sha1sum > hashes/sha1/12/34/12345
-    - echo -n "test2" | sha1sum >> hashes/sha1/12/34/12345
-    - gzip hashes/sha1/12/34/12345
-    - mkdir -p hashes/sha1/00/00/
-    - echo -n "test3" | sha1sum > hashes/sha1/00/00/00007
-    - gzip hashes/sha1/00/00/00007
+    # echo -n "test" | sha1sum
+    - mkdir -p hashes/sha1/a9/4a/
+    - echo "fe5ccb19ba61c4c0873d391e987982fbbd3" > hashes/sha1/a9/4a/a94a8
+    - gzip hashes/sha1/a9/4a/a94a8
+    # echo -n "test2" | sha1sum
+    - mkdir -p hashes/sha1/10/9f/
+    - echo "b3c50d7b0df729d299bc6f8e9ef9066971f" > hashes/sha1/10/9f/109f4
+    - gzip hashes/sha1/10/9f/109f4
     - target/release/leaked-passwords-filter-tool ./hashes target/release/test-filter.bincode -b --test-mode
   needs:
     - job: build
