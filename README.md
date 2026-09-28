@@ -68,16 +68,15 @@ This software supports generating filters using Have I Been Pwned password hashe
 
 ### Download HaveIBeenPwned password hashes
 
-```bash
-docker run -it --rm -v /path/to/your/local/data:/data python:3
+Run in devcontainer:
 
-# In container
+```bash
 pip install hibp-downloader
 pip install typing_extensions
 hibp-downloader --data-path ./target/data/passwords download
 ```
 
-This will create the directory `passwords` containing all pwned passwords.
+This will create the directory `target/data/passwords` containing all (gziped) pwned passwords.
 
 ### Generate and test filter
 
