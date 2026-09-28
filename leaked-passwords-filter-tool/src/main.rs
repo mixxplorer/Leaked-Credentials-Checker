@@ -34,7 +34,7 @@ fn test_filter(
 ) -> anyhow::Result<()> {
     {
         log::info!("Testing for false negatives...");
-        for key in password_hash_file.iter()? {
+        for key in password_hash_file.iter() {
             assert!(filter.contains(&key));
         }
         // Ensure the file reading has no error like wrongly reading the hashes, test the password "test", which should definitely be included
@@ -101,7 +101,7 @@ fn main() -> anyhow::Result<()> {
     log::info!("Starting reading of {}...", args.hash_dir);
     let password_hash_path =
         lcc_lib::password_filter::PasswordHashPath::from_directory_path(std::path::Path::new(&args.hash_dir), args.test_mode)?.populate_length()?;
-    log::info!("Reading of {} finished! Length of file is {}", args.hash_dir, password_hash_path.iter()?.len());
+    log::info!("Reading of {} finished! Number of hashes is {}", args.hash_dir, password_hash_path.iter().len());
 
     let instant_filter = std::time::Instant::now();
     let filter = {

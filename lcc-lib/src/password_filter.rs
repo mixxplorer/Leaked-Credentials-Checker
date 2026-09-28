@@ -56,7 +56,7 @@ impl PasswordHashPath<crate::types::AttributeSet> {
         self.len() == 0
     }
 
-    pub fn iter(&self) -> anyhow::Result<PasswordHashFileIterator> {
+    pub fn iter(&self) -> PasswordHashFileIterator {
         PasswordHashFileIterator::from_password_hash_path_with_length(self.clone(), 0)
     }
 }
@@ -85,7 +85,7 @@ where
     }
 
     /// Returns password hashes, shortened and formatted for bincode filter as a rayon parallel iterator
-    pub fn get_password_iterator_hashes(&self) -> (std::sync::Arc<std::sync::Mutex<u64>>, Box<impl Iterator<Item = u64> + 'static>) {
+    pub fn get_password_iterator_hashes(&self) -> (std::sync::Arc<std::sync::Mutex<u64>>, impl Iterator<Item = u64> + 'static) {
         let base_path = self.base_path.clone();
 
         Self::get_password_iterator_hashes_static(base_path, self.test_mode)
@@ -95,7 +95,7 @@ where
     fn get_password_iterator_hashes_static(
         base_path: std::path::PathBuf,
         test_mode: bool,
-    ) -> (std::sync::Arc<std::sync::Mutex<u64>>, Box<impl Iterator<Item = u64>>) {
+    ) -> (std::sync::Arc<std::sync::Mutex<u64>>, impl Iterator<Item = u64>) {
         let file_names = Self::generate_file_names(base_path.to_path_buf());
 
         let error_count = std::sync::Arc::new(std::sync::Mutex::<u64>::new(0));
@@ -121,13 +121,13 @@ where
                 .flat_map(move |(lines, hash_start)| {
                     lines
                         .into_iter()
-                        .map(|line_res| {
-                            if let Err(ref error) = line_res {
+                        .map(|line_res| match &line_res {
+                            Ok(line_res_ok) => Ok(format!("{hash_start}{}", line_res_ok)),
+                            Err(error) => {
                                 log::error!("File line parsing error: {:?}", error);
                                 *error_count_map_2.lock().unwrap() += 1;
-                                return line_res;
+                                line_res
                             }
-                            Ok(format!("{hash_start}{}", line_res.unwrap()))
                         })
                         .filter_map(Result::ok)
                         .collect::<Vec<String>>()
@@ -154,21 +154,21 @@ pub fn hash_string_to_filter_items(input: &String) -> anyhow::Result<Vec<u64>> {
 }
 
 impl PasswordHashFileIterator {
-    fn from_password_hash_path_with_length(path: PasswordHashPath<crate::types::AttributeSet>, skip_lines: usize) -> anyhow::Result<Self> {
+    fn from_password_hash_path_with_length(path: PasswordHashPath<crate::types::AttributeSet>, skip_lines: usize) -> Self {
         // ignore errors here, as they were checked during line/entry counting
         let (_errors, filtered_iterator) = path.get_password_iterator_hashes();
 
-        Ok(PasswordHashFileIterator {
+        PasswordHashFileIterator {
             iterator: Box::new(filtered_iterator.skip(skip_lines)),
             lines_consumed: 0,
             path,
-        })
+        }
     }
 }
 
 impl Clone for PasswordHashFileIterator {
     fn clone(&self) -> Self {
-        Self::from_password_hash_path_with_length(self.path.clone(), self.lines_consumed).unwrap()
+        Self::from_password_hash_path_with_length(self.path.clone(), self.lines_consumed)
     }
 }
 
@@ -208,7 +208,7 @@ impl PasswordFilter {
 }
 
 pub fn construct_filter(password_hash_file: &PasswordHashPath<crate::types::AttributeSet>) -> anyhow::Result<PasswordFilter> {
-    let filter = crate::constants::BinaryFilterType::try_from_iterator(password_hash_file.iter()?)
+    let filter = crate::constants::BinaryFilterType::try_from_iterator(password_hash_file.iter())
         .map_err(|op| anyhow::anyhow!(op.to_string()))
         .context("Constructing xor filter failed!")?;
     Ok(PasswordFilter {
