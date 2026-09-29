@@ -9,8 +9,8 @@ use lcc_lib::constants::{DEFAULT_FILTER_FILE, DEFAULT_PASSWORD_HASH_FILE};
     long_about = "CLI toolchain to build and test password filter. Currently, only Have I been pwned password hashes are utilized"
 )]
 pub struct CliArguments {
-    #[clap(default_value = DEFAULT_PASSWORD_HASH_FILE, help = "Path to password hash file, e.g. for checking entries or re-building the filter.")]
-    hash_file: String,
+    #[clap(default_value = DEFAULT_PASSWORD_HASH_FILE, help = "Path to directory of password hash files, e.g. for checking entries or re-building the filter.")]
+    hash_dir: String,
 
     #[clap(default_value = DEFAULT_FILTER_FILE, help = "Path to read and write the filter to. If re-building filter is requested, this file gets overwritten.")]
     filter_file: String,
@@ -21,22 +21,32 @@ pub struct CliArguments {
     #[clap(short, long, action = clap::ArgAction::SetFalse, help = "Do not run tests against filter. Skip checking for false positives and false negatives.")]
     skip_test_filter: bool,
 
+    #[clap(short, long, action = clap::ArgAction::SetTrue, help = "Do not error if some hash files are missing.")]
+    test_mode: bool,
+
     #[clap(flatten)]
     log_level: clap_verbosity_flag::Verbosity<clap_verbosity_flag::InfoLevel>,
 }
 
-fn test_filter(filter: lcc_lib::password_filter::PasswordFilter, password_hash_file: lcc_lib::password_filter::PasswordHashFile) -> anyhow::Result<()> {
+fn test_filter(
+    filter: lcc_lib::password_filter::PasswordFilter,
+    password_hash_file: lcc_lib::password_filter::PasswordHashPath<lcc_lib::types::AttributeSet>,
+) -> anyhow::Result<()> {
     {
         log::info!("Testing for false negatives...");
-        for key in password_hash_file.iter()? {
+        for key in password_hash_file.iter() {
             assert!(filter.contains(&key));
+        }
+        // Ensure the file reading has no error like wrongly reading the hashes, test the password "test", which should definitely be included
+        for key in lcc_lib::password_filter::hash_string_to_filter_items(&"a94a8fe5ccb19ba61c4c0873d391e987982fbbd3".to_owned())? {
+            assert!(filter.contains(&key))
         }
         log::info!("All checked! No false negative encountered!");
     }
 
     {
         // bits per entry
-        let bpe = (filter.len() as f64) * 32.0 / (password_hash_file.length as f64);
+        let bpe = (filter.len() as f64) * 32.0 / (password_hash_file.len() as f64);
         log::info!("Bits per entry = {bpe}");
     }
     {
@@ -45,7 +55,10 @@ fn test_filter(filter: lcc_lib::password_filter::PasswordFilter, password_hash_f
         let mut rng = rand::rng();
         let instant_fp = std::time::Instant::now();
         // false positive rate
-        let rand_positives: usize = (0..TEST_ITERATIONS).map(|_| rand::Rng::random(&mut rng)).filter(|n| filter.contains(n)).count();
+        let rand_positives: usize = (0..TEST_ITERATIONS)
+            .map(|_| rand::RngExt::random(&mut rng))
+            .filter(|n| filter.contains(n))
+            .count();
         let elapsed_fp = instant_fp.elapsed();
         log::info!(
             "Elapsed: {:.2?}, {:.10?} µs per entry",
@@ -55,7 +68,7 @@ fn test_filter(filter: lcc_lib::password_filter::PasswordFilter, password_hash_f
 
         let rand_positive_rate: f64 = (rand_positives * 100) as f64 / (TEST_ITERATIONS) as f64;
         // Expected rand rate depends on portion of range that is occupied with leaked passwords
-        let expected_rand_positive_rate: f64 = (password_hash_file.length * 100) as f64 / (2_i128.pow(64)) as f64;
+        let expected_rand_positive_rate: f64 = (password_hash_file.len() * 100) as f64 / (2_i128.pow(64)) as f64;
         log::error!(
             "Random positive rate is {}%, while expected rate is {}%. Difference is {}%",
             rand_positive_rate,
@@ -85,16 +98,17 @@ fn main() -> anyhow::Result<()> {
     })
     .expect("Error setting Ctrl-C handler");
 
-    log::info!("Starting reading of {}...", args.hash_file);
-    let password_hash_file = lcc_lib::password_filter::PasswordHashFile::from_file_name(args.hash_file.clone())?;
-    log::info!("Reading of {} finished! Length of file is {}", args.hash_file, password_hash_file.iter()?.len());
+    log::info!("Starting reading of {}...", args.hash_dir);
+    let password_hash_path =
+        lcc_lib::password_filter::PasswordHashPath::from_directory_path(std::path::Path::new(&args.hash_dir), args.test_mode)?.populate_length()?;
+    log::info!("Reading of {} finished! Number of hashes is {}", args.hash_dir, password_hash_path.iter().len());
 
     let instant_filter = std::time::Instant::now();
     let filter = {
         if args.build_filter {
             log::info!("Starting construction of filter...");
 
-            lcc_lib::password_filter::construct_filter(&password_hash_file)?
+            lcc_lib::password_filter::construct_filter(&password_hash_path)?
         } else {
             log::info!("Starting loading of filter from {}...", args.filter_file);
             lcc_lib::password_filter::load_filter(&args.filter_file)?
@@ -107,7 +121,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     if args.skip_test_filter {
-        test_filter(filter, password_hash_file)?;
+        test_filter(filter, password_hash_path)?;
     }
 
     Ok(())

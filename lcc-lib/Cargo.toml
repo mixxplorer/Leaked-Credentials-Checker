@@ -8,8 +8,10 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 anyhow = "~1.0.98"
 bincode = { version = "~2.0.1", features = ["std", "derive"] }
+flate2 = "1.1.9"
 itertools = "~0.14.0"
-rand = "~0.9.1"
+log = "0.4.34"
+rand = "~0.10.3"
 schemars = "~0.9.0"
 serde = "~1.0.219"
 xorf = { version = "~0.11.0", features = ["serde", "bincode"] }

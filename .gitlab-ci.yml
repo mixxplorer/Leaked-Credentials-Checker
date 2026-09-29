@@ -37,10 +37,15 @@ test:filter:
   image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/debian:stable
   stage: test
   script:
-    - echo -n "test" | sha1sum > hashes
-    - echo -n "test2" | sha1sum >> hashes
-    - echo -n "test3" | sha1sum >> hashes
-    - target/release/leaked-passwords-filter-tool ./hashes target/release/test-filter.bincode -b
+    # echo -n "test" | sha1sum
+    - mkdir -p hashes/sha1/a9/4a/
+    - echo "fe5ccb19ba61c4c0873d391e987982fbbd3" > hashes/sha1/a9/4a/a94a8
+    - gzip hashes/sha1/a9/4a/a94a8
+    # echo -n "test2" | sha1sum
+    - mkdir -p hashes/sha1/10/9f/
+    - echo "b3c50d7b0df729d299bc6f8e9ef9066971f" > hashes/sha1/10/9f/109f4
+    - gzip hashes/sha1/10/9f/109f4
+    - target/release/leaked-passwords-filter-tool ./hashes target/release/test-filter.bincode -b --test-mode
   needs:
     - job: build
       artifacts: true
@@ -80,17 +85,18 @@ docker:bin:
 
 filter:hibp:
   stage: filter
-  image: mcr.microsoft.com/dotnet/sdk:8.0-noble
+  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/library/python:3
+
   needs:
     - job: build
       artifacts: true
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
-    - export PATH="$PATH:/root/.dotnet/tools"
-    - dotnet tool install --global haveibeenpwned-downloader
-    - haveibeenpwned-downloader -p 128 pwnedpasswords
-    - ./target/release/leaked-passwords-filter-tool pwnedpasswords.txt target/release/filter.bincode -b
+    - pip install hibp-downloader
+    - pip install typing_extensions
+    - hibp-downloader --quiet --data-path data/passwords download
+    - ./target/release/leaked-passwords-filter-tool data/passwords target/release/filter.bincode -b
   artifacts:
     paths:
       - target/release/filter.bincode

@@ -68,25 +68,28 @@ This software supports generating filters using Have I Been Pwned password hashe
 
 ### Download HaveIBeenPwned password hashes
 
+Run in devcontainer:
+
 ```bash
-docker run -it --rm mcr.microsoft.com/dotnet/sdk /bin/bash
-export PATH="$PATH:/root/.dotnet/tools"
-dotnet tool install --global haveibeenpwned-downloader
-haveibeenpwned-downloader pwnedpasswords
+pip install hibp-downloader
+pip install typing_extensions
+hibp-downloader --data-path ./target/data/passwords download
 ```
 
-This will create the file `pwnedpasswords.txt`.
+This will create the directory `target/data/passwords` containing all (gziped) pwned passwords.
 
 ### Generate and test filter
 
-`target/release/leaked-passwords-filter-tool pwnedpasswords.txt filter.bincode -b`
+```
+cargo run --release --bin leaked-passwords-filter-tool ./target/data/passwords filter.bincode -b --test-mode
+```
 
 For generating the filter file for the full pwnedpasswords set, you need about 35 GB of memory. You can make use of swap pretty efficiently.
 
 ### Run web API
 
 ```bash
-target/release/lcc-web-api -f filter.bincode
+cargo run --release --bin lcc-web-api -- -f filter.bincode -b 0.0.0.0:3000
 ```
 
 After starting the API, you can request it like this: `curl 'http://localhost:3000/v1/hashes/check' -X POST -H 'Content-Type: application/json' --data-raw $'{\n"hash": "1000000B0E6B3F21"\n}'`

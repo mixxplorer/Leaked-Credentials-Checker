@@ -13,7 +13,7 @@ lcc-lib = { path="../lcc-lib" }
 aide = { version = "~0.15.0", features = ["axum", "axum-json", "axum-query", "redoc", "macros"] }
 anyhow = "~1.0.98"
 axum = "~0.8.4"
-clap = { version = "~4.5.40", features = ["derive"] }
+clap = { version = "~4.6.7", features = ["derive"] }
 clap-verbosity-flag = "~3.0.3"
 ctrlc = "~3.4.7"
 log = "~0.4.27"
